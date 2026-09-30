@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A browser-based image classifier built for a Batxillerat research project, using TensorFlow.js and pretrained MobileNet.">
+  <title>Image Classifier | TDR</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/script.js"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <p class="eyebrow">A RESEARCH PROJECT · COMPUTER VISION</p>
+      <h1>Image Classifier</h1>
+      <p>Explore how a neural network sees your image.</p>
+      <span class="tag">TensorFlow.js + MobileNet</span>
+    </div>
+  </header>
+  <main class="container">
+    <section class="upload-section" aria-labelledby="upload-heading">
+      <div class="section-heading"><span class="step">01</span><h2 id="upload-heading">Choose an image</h2></div>
+      <p class="intro">Try a clear photo of an animal or everyday object.</p>
+      <form id="upload-form">
+        <label for="imageInput">Image file</label>
+        <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp" aria-describedby="file-help" required>
+        <p class="help" id="file-help">JPG, PNG or WebP · Up to 10 MB and 20 megapixels</p>
+        <div class="actions">
+          <button type="submit" id="classifyButton" disabled>Classify image</button>
+          <button type="button" id="clearButton" class="secondary" disabled>Clear</button>
+        </div>
+      </form>
+      <p id="status" role="status" aria-live="polite">Choose an image to get started.</p>
+      <p id="error" class="error" role="alert" hidden></p>
+      <figure id="image-preview" hidden>
+        <img id="uploadedImage" alt="Selected image preview">
+        <figcaption id="image-name"></figcaption>
+      </figure>
+      <section id="result" aria-labelledby="result-heading" tabindex="-1" hidden>
+        <div class="section-heading"><span class="step">02</span><h2 id="result-heading">Top 3 predictions</h2></div>
+        <ol id="prediction-list"></ol>
+        <p class="help">These are model confidence scores, not measured accuracy or a guarantee. The three scores may not add up to 100%.</p>
+      </section>
+    </section>
+    <aside class="about" aria-labelledby="about-heading">
+      <h2 id="about-heading">How it works</h2>
+      <p>Your image is processed in this browser. The app does not upload or save it on a server. An internet connection is needed to download the libraries and pretrained model.</p>
+      <p>MobileNet predicts labels from its ImageNet categories. It can be wrong, cannot identify people by name, and does not learn from the images you select.</p>
+    </aside>
+    <noscript><p class="error">Enable JavaScript to use this image classifier.</p></noscript>
+  </main>
+  <footer class="container">Built by Jalail Akter as part of a Batxillerat research project.</footer>
+</body>
+</html>
