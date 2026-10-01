@@ -1,16 +1,12 @@
 {
   "name": "image-classifier-tdr",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Browser-based image classification using pretrained MobileNet and TensorFlow.js.",
+  "description": "Browser-based image classification using pretrained Google ViT and Transformers.js.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check js/classifier.js && node --check js/model.js && node --check js/script.js",
-    "start": "python3 start.py",
-    "test:server": "python3 -m unittest discover -s tests -p \"test_*.py\""
+    "check": "node --check js/classifier.js && node --check js/script.js"
   },
-  "engines": {
-    "node": ">=20"
-  }
+  "engines": { "node": ">=20" }
 }

@@ -1,8 +1,8 @@
 # Image Classifier
 
-A browser-based image classifier built by **JalaL Hazi** as part of a **Batxillerat research project (Treball de Recerca)** exploring artificial intelligence and neural networks.
+A browser-based image classifier built by **Jalail Akter** as part of a **Batxillerat research project (Treball de Recerca)** exploring artificial intelligence and neural networks.
 
-Select an image and see the three most likely ImageNet labels predicted by pretrained MobileNet, with a confidence score for each.
+Select an image and see the three most likely ImageNet labels predicted by pretrained Google ViT (`google/vit-base-patch16-224`), with a confidence score for each.
 
 ## My contribution
 
@@ -20,7 +20,6 @@ This repository contains a portfolio revision of the original prototype, includi
 - One model reused across classifications, with retry after a failed download.
 - File size and decoded-dimension checks, errors and loading states.
 - Keyboard controls and responsive layout.
-- A local launcher that opens the correct page and handles occupied ports.
 
 ## Run locally
 
@@ -29,22 +28,14 @@ Use a local HTTP server, because the app uses JavaScript modules. Opening `index
 From the project folder, run:
 
 ```bash
-python3 start.py
+python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-The launcher opens the application in your default browser and prints its exact URL. Leave the terminal running; stop it with `Ctrl+C`.
-
-It serves the folder containing `start.py`, even if invoked from another working directory. It tries port **8001** and automatically selects a free port if that port is occupied. Existing servers are left running. **Use the URL printed by this launcher**, rather than an old tab on port 8000.
-
-Python 3.9 or newer is sufficient for the launcher. It uses only the standard library. With Node/npm installed, `npm start` runs the same command; no `npm install` is needed.
-
-To avoid opening the browser automatically, run `python3 start.py --no-browser`. To request another port, run `python3 start.py --port 8080`.
-
-If the browser shows “Directory listing for /”, you are viewing a folder listing served by another command. Open the new URL from `start.py`.
+Open **http://localhost:8000** in a modern browser. Stop the server with `Ctrl+C`.
 
 Alternatively, open the folder in VS Code and serve `index.html` using Live Server. No build step, API key, backend or npm installation is required to run the app. The Python command only serves static files; it does not perform classification.
 
-The first classification needs internet access to download the libraries from jsDelivr and the model from the URLs used by the MobileNet package. It can take longer than subsequent classifications. The app is not packaged for offline use.
+The first classification needs internet access to download the libraries from jsDelivr and the ONNX model from Hugging Face. It can take longer than subsequent classifications. The app is not packaged for offline use.
 
 ## Technology
 
@@ -52,19 +43,19 @@ The first classification needs internet access to download the libraries from js
 | --- | --- |
 | HTML and CSS | Accessible structure and responsive presentation |
 | JavaScript modules | Image handling, interface state and inference integration |
-| TensorFlow.js 4.22.0 | Browser machine-learning runtime |
-| `@tensorflow-models/mobilenet` 2.1.1 | Pretrained image-classification wrapper |
-| MobileNet V1, alpha 1.0 | Explicit model configuration, preserving the original default |
+| Transformers.js 3.8.1 | Browser machine-learning runtime (WebAssembly) |
+| `google/vit-base-patch16-224` | Pretrained Vision Transformer |
+| `Xenova/vit-base-patch16-224` | Browser-compatible ONNX conversion, q8 weights |
 
-The package version and the neural-network version are different: MobileNet **package 2.1.1** is configured here to load **model V1**.
+The current app uses the ONNX conversion of Google ViT with quantized weights to reduce download size. Initial loading can take several minutes.
 
 ## How it works
 
 1. Check the selected file type and size, decode it, and check its dimensions.
 2. Preview the local image using a temporary object URL.
 3. On the first classification, download the libraries and pretrained model.
-4. Copy the image into a canvas, limit its longest side to 1,024 pixels, and place transparent pixels on a white background. MobileNet performs its own model-specific preprocessing.
-5. Run `model.classify(canvas, 3)` and render the returned labels safely as text.
+4. Copy the image into a canvas, limit its longest side to 1,024 pixels, and place transparent pixels on a white background. The ViT pipeline performs its own model-specific preprocessing.
+5. Run `model(canvas.toDataURL('image/png'), { top_k: 3 })` and render the returned labels safely as text.
 
 The selected image and predictions are not stored by the app. Third-party library and model downloads still make ordinary network requests; “local inference” does not mean there is no network traffic.
 
@@ -84,7 +75,6 @@ Node.js 20 or newer is required only for development checks. There are no npm de
 ```bash
 npm test
 npm run check
-python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
 The automated tests cover validation, score formatting, malformed model results, concurrent model loading, reuse, retry and timeout cleanup. See [validation notes](docs/VALIDATION.md) for the checks actually performed and the remaining browser smoke test.
@@ -102,14 +92,15 @@ Use that site URL for the interactive demo and the repository URL for the source
 | `index.html` | Page structure |
 | `css/style.css` | Layout and styling |
 | `js/script.js` | Browser interaction and model integration |
-| `js/model.js` | Pinned library downloads, model loading and progress messages |
-| `start.py` | Local launcher with fixed project directory and free-port fallback |
-| `tests/test_start.py` | Real HTTP regression tests for startup |
 | `js/classifier.js` | Validation and asynchronous model-loading utilities |
 | `tests/classifier.test.js` | Regression checks with Node's built-in test runner |
 | `docs/VALIDATION.md` | Verification status and browser test steps |
 
 ## References and attribution
+
+- [Google ViT model](https://huggingface.co/google/vit-base-patch16-224)
+- [Browser-compatible ONNX conversion](https://huggingface.co/Xenova/vit-base-patch16-224)
+- [Transformers.js](https://huggingface.co/docs/transformers.js)
 
 - [TensorFlow.js](https://www.tensorflow.org/js)
 - [MobileNet package and API](https://github.com/tensorflow/tfjs-models/tree/master/mobilenet)
@@ -117,4 +108,4 @@ Use that site URL for the interactive demo and the repository URL for the source
 - [TensorFlow.js pretrained models](https://www.tensorflow.org/js/models)
 - [GitHub Pages publishing documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
-TensorFlow.js and the TensorFlow.js Models repository publish their code under Apache-2.0. These dependencies are referenced remotely, not bundled here. Their authors retain the rights to their work. No open-source license has been selected for this application's own code.
+Transformers.js and the Google ViT model publish under Apache-2.0. The current dependencies are referenced remotely, not bundled here. Their authors retain the rights to their work. No open-source license has been selected for this application's own code.

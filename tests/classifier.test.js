@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_FILE_BYTES, validateFile, validateDimensions, validatePredictions, formatScore, disposeMobileNet, createModelLoader, withTimeout } from '../js/classifier.js';
+import { MAX_FILE_BYTES, validateFile, validateDimensions, validatePredictions, formatScore, disposeModel, createModelLoader, withTimeout } from '../js/classifier.js';
 
 test('supported images and file size boundary', () => {
   for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
@@ -55,8 +55,8 @@ test('timeouts reject stalled work and dispose late results', async () => {
   let finish;
   let disposed=false;
   const pending=new Promise(resolve=>{finish=resolve;});
-  await assert.rejects(withTimeout(pending,5,'too slow',disposeMobileNet),/too slow/);
-  finish({model:{dispose(){disposed=true;}}});
+  await assert.rejects(withTimeout(pending,5,'too slow',disposeModel),/too slow/);
+  finish({dispose(){disposed=true;}});
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(disposed,true);
 });
