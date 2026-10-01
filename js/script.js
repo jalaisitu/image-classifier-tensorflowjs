@@ -1,13 +1,5 @@
-import {
-  validateFile,
-  validateDimensions,
-  validatePredictions,
-  formatScore,
-  withTimeout,
-} from './classifier.js';
-import { getModel } from './model.js';
+import { validateFile, validateDimensions, validatePredictions, formatScore, disposeModel, createModelLoader, withTimeout } from './classifier.js';
 
-// Page elements
 const form = document.getElementById('upload-form');
 const input = document.getElementById('imageInput');
 const image = document.getElementById('uploadedImage');
@@ -19,24 +11,18 @@ const status = document.getElementById('status');
 const errorBox = document.getElementById('error');
 const result = document.getElementById('result');
 const list = document.getElementById('prediction-list');
-
-// Current selection and processing state
 let objectURL;
 let selection = 0;
 let imageReady = false;
 let busy = false;
 let inferencePending = false;
 
-function setStatus(message) {
-  status.textContent = message;
-}
-
 function updateControls() {
   input.disabled = busy;
   classifyButton.disabled = busy || inferencePending || !imageReady;
   clearButton.disabled = busy || !input.files.length;
-  classifyButton.textContent = busy ? 'Working…' : 'Classify image';
   form.setAttribute('aria-busy', String(busy));
+  classifyButton.textContent = busy ? 'Working…' : 'Classify image';
 }
 
 function clearResults() {
@@ -50,191 +36,135 @@ function clearPreview() {
   imageReady = false;
   preview.hidden = true;
   image.removeAttribute('src');
+  if (objectURL) URL.revokeObjectURL(objectURL);
+  objectURL = undefined;
   filename.textContent = '';
-
-  if (objectURL) {
-    URL.revokeObjectURL(objectURL);
-    objectURL = undefined;
-  }
 }
 
 function showError(error) {
   errorBox.textContent = error.message || 'Something went wrong. Please try again.';
   errorBox.hidden = false;
-  setStatus('Please check the message below.');
+  status.textContent = 'Please check the message below.';
 }
 
-// A snapshot prevents a late inference from reading a new selection.
-function createImageSnapshot() {
-  const canvas = document.createElement('canvas');
-  const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
-  const scale = Math.min(1, 1024 / longestSide);
-
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    throw new Error('This browser could not read the image pixels.');
-  }
-
-  context.fillStyle = '#fff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  return canvas;
-}
-
-function renderPredictions(predictions) {
-  list.replaceChildren();
-
-  for (const prediction of predictions) {
-    const item = document.createElement('li');
-    item.className = 'result-item';
-
-    const heading = document.createElement('div');
-    heading.className = 'prediction-heading';
-
-    const label = document.createElement('span');
-    label.className = 'label';
-    label.textContent = prediction.className;
-
-    const scoreText = formatScore(prediction.probability);
-    const score = document.createElement('span');
-    score.className = 'percentage';
-    score.textContent = scoreText;
-
-    const meter = document.createElement('meter');
-    meter.min = 0;
-    meter.max = 1;
-    meter.value = prediction.probability;
-    meter.setAttribute(
-      'aria-label',
-      `${prediction.className}: ${scoreText} confidence`
+// Load the browser-compatible ONNX conversion of google/vit-base-patch16-224.
+const getModel = createModelLoader(async () => {
+  try {
+    const { pipeline, env } = await withTimeout(
+      import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1'),
+      30000,
+      
     );
-
-    heading.append(label, score);
-    item.append(heading, meter);
-    list.append(item);
+    env.allowLocalModels = false;
+    return await withTimeout(
+      pipeline('image-classification', 'Xenova/vit-base-patch16-224', {
+        device: 'wasm',
+        dtype: 'q8'
+      }),
+      300000,
+      
+      disposeModel
+    );
+  } catch (error) {
+    throw new Error(`Could not load the image model. ${error.message}`);
   }
+});
 
-  result.hidden = false;
-  result.focus();
-}
-
-async function handleImageSelection() {
-  const currentSelection = ++selection;
-  const file = input.files[0];
-
+input.addEventListener('change', async () => {
+  const current = ++selection;
   clearResults();
   clearPreview();
   updateControls();
-
-  if (!file) {
-    setStatus('Choose an image to get started.');
-    return;
-  }
-
+  const file = input.files[0];
+  if (!file) { status.textContent = 'Choose an image to get started.'; return; }
   try {
     validateFile(file);
-    setStatus('Reading your image…');
+    status.textContent = 'Reading your image…';
     objectURL = URL.createObjectURL(file);
     image.src = objectURL;
-
-    await withTimeout(
-      image.decode(),
-      15000,
-      'This image took too long to open. Try a smaller file.'
-    );
-
-    if (currentSelection !== selection) {
-      return;
-    }
-
+    await withTimeout(image.decode(), 15000, 'This image took too long to open. Try a smaller file.');
+    if (current !== selection) return;
     validateDimensions(image.naturalWidth, image.naturalHeight);
     imageReady = true;
     preview.hidden = false;
-    filename.textContent =
-      `${file.name} · ${image.naturalWidth} × ${image.naturalHeight}`;
-    setStatus('Image ready. Select “Classify image” to see predictions.');
+    filename.textContent = `${file.name} · ${image.naturalWidth} × ${image.naturalHeight}`;
+    status.textContent = 'Image ready. Select “Classify image” to see predictions.';
   } catch (error) {
-    if (currentSelection !== selection) {
-      return;
-    }
-
+    if (current !== selection) return;
     clearPreview();
-
-    if (error.name === 'EncodingError') {
-      showError(new Error(
-        'This file could not be decoded. Try another JPG, PNG or WebP image.'
-      ));
-    } else {
-      showError(error);
-    }
+    showError(error.name === 'EncodingError' ? new Error('This file could not be decoded. Try another JPG, PNG or WebP image.') : error);
   } finally {
-    if (currentSelection === selection) {
-      updateControls();
-    }
+    if (current === selection) updateControls();
   }
-}
+});
 
-async function handleClassification(event) {
+form.addEventListener('submit', async event => {
   event.preventDefault();
-
-  if (busy || inferencePending || !imageReady) {
-    return;
-  }
-
+  if (busy || inferencePending || !imageReady) return;
   busy = true;
   clearResults();
   updateControls();
-
   try {
-    setStatus('Preparing the model…');
-    const model = await getModel(setStatus);
-    const snapshot = createImageSnapshot();
-
-    setStatus('Classifying your image in this browser…');
+    status.textContent = 'Preparing the model. The first download may take a moment…';
+    const model = await getModel();
+    status.textContent = 'Classifying your image in this browser…';
+    // Snapshot the pixels so a late inference cannot read a different image.
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('This browser could not read the image pixels.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
     inferencePending = true;
-
-    const classification = Promise.resolve()
-      .then(() => model.classify(snapshot, 3))
-      .finally(() => {
-        inferencePending = false;
-        updateControls();
-      });
-
-    const predictions = await withTimeout(
-      classification,
-      30000,
+    const classification = Promise.resolve().then(() => model(canvas.toDataURL('image/png'), { top_k: 3 }).then(predictions =>
+      predictions.map(({ label, score }) => ({ className: label, probability: score }))
+    )).finally(() => {
+      inferencePending = false;
+      updateControls();
+    });
+    const predictions = validatePredictions(await withTimeout(
+      classification, 120000,
       'Classification took too long. Try a smaller image or reload the page.'
-    );
-
-    renderPredictions(validatePredictions(predictions));
-    setStatus('Classification complete. You can choose another image.');
+    ));
+    for (const prediction of predictions) {
+      const item = document.createElement('li');
+      item.className = 'result-item';
+      const heading = document.createElement('div');
+      heading.className = 'prediction-heading';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = prediction.className;
+      const score = document.createElement('span');
+      score.className = 'percentage';
+      score.textContent = formatScore(prediction.probability);
+      const meter = document.createElement('meter');
+      meter.min = 0; meter.max = 1; meter.value = prediction.probability;
+      meter.setAttribute('aria-label', `${prediction.className}: ${formatScore(prediction.probability)} confidence`);
+      heading.append(label, score);
+      item.append(heading, meter);
+      list.append(item);
+    }
+    result.hidden = false;
+    status.textContent = 'Classification complete. You can choose another image.';
+    result.focus();
   } catch (error) {
     showError(error);
   } finally {
     busy = false;
     updateControls();
   }
-}
+});
 
-function handleClear() {
-  if (busy) {
-    return;
-  }
-
+clearButton.addEventListener('click', () => {
+  if (busy) return;
   selection++;
   input.value = '';
   clearPreview();
   clearResults();
-  setStatus('Choose an image to get started.');
+  status.textContent = 'Choose an image to get started.';
   updateControls();
   input.focus();
-}
-
-input.addEventListener('change', handleImageSelection);
-form.addEventListener('submit', handleClassification);
-clearButton.addEventListener('click', handleClear);
+});
